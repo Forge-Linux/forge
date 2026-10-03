@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from forge.core.project import detect_project
 from forge.core.system import get_system_info
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -72,12 +75,39 @@ class ForgeWindow(QMainWindow):
         for name, value in rows:
             system_layout.addRow(name, QLabel(value or "Unavailable"))
 
+        project = detect_project(Path.cwd())
+        project_section = QGroupBox("Project")
+        project_layout = QFormLayout(project_section)
+        git = project.git
+        if git is None:
+            git_state = "Not in a Git repository" if project.git_available else "Git unavailable"
+            branch = git_state
+        else:
+            if git.is_clean is True:
+                git_state = "Clean"
+            elif git.changed_files is not None:
+                git_state = f"{git.changed_files} changed file(s)"
+            else:
+                git_state = "Unknown"
+            branch = git.current_branch or "Detached HEAD"
+        project_rows = (
+            ("Name", project.project_name or "No project detected"),
+            ("Root", str(project.project_root) if project.project_root else "Unavailable"),
+            ("Git branch", branch),
+            ("Working tree", git_state),
+            ("Project files", ", ".join(project.project_files) or "None detected"),
+            ("Python environment", str(project.virtual_environment) if project.virtual_environment else "None detected"),
+        )
+        for name, value in project_rows:
+            project_layout.addRow(name, QLabel(value))
+
         layout.addWidget(title)
         layout.addWidget(subtitle)
         layout.addWidget(development)
         layout.addWidget(entertainment)
         layout.addWidget(other)
         layout.addWidget(system_section)
+        layout.addWidget(project_section)
         layout.addStretch()
 
         self.setCentralWidget(central)
