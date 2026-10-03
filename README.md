@@ -8,7 +8,7 @@ Instead of treating an AI assistant as another application you open when you nee
 
 ## Current Status
 
-**Early development — Phase 1**
+**Early development — Workspace Command Center**
 
 Forge is currently a prototype. The first milestone is establishing the desktop foundation and gradually giving Forge awareness of the system it is running on.
 
@@ -19,13 +19,14 @@ Current progress:
 * [x] PySide6 desktop shell
 * [x] First Forge window
 * [x] GitHub repository and development workflow
-* [ ] System information/context
-* [ ] Project detection
-* [ ] Git/workspace awareness
-* [ ] Agent architecture
-* [ ] AI integration
-* [ ] Context-aware assistance
-* [ ] Desktop customization system
+* [x] System information/context
+* [x] Project and Git/workspace awareness
+* [x] Development environment detection
+* [x] Workspace dashboard and refresh
+* [x] Workspace actions, command palette, and output panel
+* [x] Deterministic workspace insights and activity timeline
+* [x] Recent project sessions and project task recipes
+* [ ] Local agent architecture and AI integration
 
 ## The Idea
 
@@ -107,6 +108,32 @@ Workspace refresh runs on a worker thread so Git and filesystem checks do not
 block interaction. Startup and refresh transitions can be disabled with the
 saved `reduced_motion` preference or `FORGE_REDUCED_MOTION=1`.
 
+## Workspace command center
+
+`forge.core.actions` discovers shell-free project actions from the workspace
+metadata and runs explicit argument arrays. Optional project recipes live in
+`.forge/tasks.json`:
+
+```json
+[
+  {
+    "id": "check-types",
+    "title": "Check types",
+    "description": "Run the project's type checker",
+    "argv": ["python", "-m", "mypy", "."]
+  }
+]
+```
+
+Recipes run from the project root after the user selects them in the command
+palette or action shelf. Forge does not install dependencies. `core/insights.py`
+derives read-only workspace pulse messages from `WorkspaceContext`; recent
+actions and sessions are stored in `~/.config/forge/state.json`. The Qt
+command palette, live output dock, action shelf, pulse, and timeline are
+composed in `desktop/command_center.py` and `desktop/window.py`. The action
+executor has no Qt dependency, uses `subprocess` with `shell=False`, and
+streams bounded output back to the UI.
+
 ## Development Roadmap
 
 ### Phase 1 — Foundation
@@ -121,11 +148,11 @@ Teach Forge about the machine it is running on.
 
 Detect projects, repositories, development environments, and active workflows.
 
-### Phase 4 — Agent Core
+### Phase 4 — Workflow Foundation
 
-Build the internal agent architecture and tool system.
+Grow the command, event, session, and extension APIs around the workspace.
 
-### Phase 5 — Intelligence
+### Phase 5 — Agent Core and Intelligence
 
 Connect Forge to an AI model and provide context-aware assistance.
 

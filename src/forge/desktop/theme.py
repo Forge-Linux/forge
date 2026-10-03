@@ -54,6 +54,10 @@ def stylesheet() -> str:
         QLabel#statusSuccess {{ color: {p.success}; background: {p.success_soft}; border: 1px solid {p.border_subtle}; border-radius: 9px; padding: 5px 9px; font-size: 8pt; font-weight: 650; }}
         QLabel#statusWarning {{ color: {p.warning}; background: {p.warning_soft}; border: 1px solid {p.border_subtle}; border-radius: 9px; padding: 5px 9px; font-size: 8pt; font-weight: 650; }}
         QLabel#statusError {{ color: {p.error}; background: {p.error_soft}; border: 1px solid {p.border_subtle}; border-radius: 9px; padding: 5px 9px; font-size: 8pt; font-weight: 650; }}
+        QLabel#pulseInfo {{ color: {p.accent}; font-size: 8pt; }}
+        QLabel#pulseSuccess {{ color: {p.success}; font-size: 8pt; }}
+        QLabel#pulseWarning {{ color: {p.warning}; font-size: 8pt; }}
+        QLabel#pulseError {{ color: {p.error}; font-size: 8pt; }}
         QPushButton {{ background: {p.surface_elevated}; color: {p.text_secondary}; border: 1px solid {p.border}; border-radius: 7px; padding: 8px 12px; font-weight: 600; }}
         QPushButton:hover {{ background: {p.surface_hover}; color: {p.text_primary}; border-color: {p.accent}; }}
         QPushButton:pressed {{ background: {p.accent_soft}; }}
@@ -63,6 +67,14 @@ def stylesheet() -> str:
         QPushButton#activityButton {{ background: transparent; border-color: transparent; color: {p.text_muted}; }}
         QPushButton#activityButton:hover {{ background: {p.surface_hover}; color: {p.text_primary}; border-color: {p.border}; }}
         QPushButton#activityButton:checked {{ background: {p.accent_soft}; border-color: {p.border}; color: {p.accent}; }}
+        QPushButton#subtleButton {{ background: transparent; color: {p.accent}; border-color: {p.border_subtle}; padding: 5px 9px; }}
+        QDialog#commandPalette {{ background: {p.surface}; border: 1px solid {p.border}; }}
+        QLineEdit {{ background: {p.surface_elevated}; color: {p.text_primary}; border: 1px solid {p.border}; border-radius: 7px; padding: 10px 12px; selection-background-color: {p.accent_strong}; }}
+        QListWidget#paletteResults {{ background: {p.background}; border: 1px solid {p.border_subtle}; border-radius: 7px; outline: none; }}
+        QListWidget#paletteResults::item {{ color: {p.text_secondary}; padding: 10px; border-bottom: 1px solid {p.border_subtle}; }}
+        QListWidget#paletteResults::item:selected {{ color: {p.text_primary}; background: {p.accent_soft}; }}
+        QDockWidget#actionDock {{ color: {p.text_primary}; }}
+        QPlainTextEdit#actionOutput {{ background: {p.background}; color: {p.text_secondary}; border: 1px solid {p.border_subtle}; border-radius: 5px; font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; font-size: 9pt; }}
         QPushButton:disabled {{ color: {p.text_muted}; background: {p.surface}; border-color: {p.border_subtle}; }}
         QProgressBar {{ background: {p.border_subtle}; border: none; border-radius: 2px; max-height: 3px; text-align: center; }}
         QProgressBar::chunk {{ background: {p.accent}; border-radius: 2px; }}
