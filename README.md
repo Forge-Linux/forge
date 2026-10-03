@@ -96,6 +96,17 @@ Forge currently uses:
 
 The architecture is expected to evolve substantially as development progresses.
 
+## Desktop UI architecture
+
+The Qt presentation is organized under `src/forge/desktop/`: `theme.py` owns
+the palette and shared stylesheet, `components.py` contains reusable workspace
+cards and controls, `motion.py` provides short event-driven animations, and
+`window.py` composes those pieces. The window consumes `WorkspaceContext` from
+`forge.core`; detection and other business logic stay independent of Qt.
+Workspace refresh runs on a worker thread so Git and filesystem checks do not
+block interaction. Startup and refresh transitions can be disabled with the
+saved `reduced_motion` preference or `FORGE_REDUCED_MOTION=1`.
+
 ## Development Roadmap
 
 ### Phase 1 — Foundation
