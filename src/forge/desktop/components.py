@@ -11,7 +11,12 @@ from PySide6.QtWidgets import (
 )
 
 from forge.core.workspace import WorkspaceContext
-from forge.desktop.motion import animate_hover_opacity
+from forge.desktop.motion import animate_hover_opacity, animate_opacity, pulse_once
+from forge.desktop.theme import THEME
+
+_SPACE = THEME.spacing
+_GEOMETRY = THEME.geometry
+_MOTION = THEME.motion
 
 
 def _label(text: str, object_name: str, parent: QWidget | None = None) -> QLabel:
@@ -23,8 +28,8 @@ def _label(text: str, object_name: str, parent: QWidget | None = None) -> QLabel
 
 def _card_layout(card: QFrame) -> QVBoxLayout:
     layout = QVBoxLayout(card)
-    layout.setContentsMargins(18, 16, 18, 17)
-    layout.setSpacing(12)
+    layout.setContentsMargins(*([_SPACE.panel_padding] * 4))
+    layout.setSpacing(_SPACE.medium)
     return layout
 
 
@@ -33,20 +38,22 @@ class ForgeButton(QPushButton):
 
     def __init__(self, text: str, object_name: str = "", parent: QWidget | None = None):
         super().__init__(text, parent)
-        if object_name:
-            self.setObjectName(object_name)
+        self.setObjectName(object_name or "secondaryButton")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setMinimumHeight(_GEOMETRY.control_height)
         effect = QGraphicsOpacityEffect(self)
         effect.setOpacity(0.94)
         self.setGraphicsEffect(effect)
         self._hover_effect = effect
+        self.pressed.connect(lambda: animate_opacity(self._hover_effect, 0.78, _MOTION.press_ms))
+        self.released.connect(lambda: animate_opacity(self._hover_effect, 1.0, _MOTION.hover_ms))
 
     def enterEvent(self, event) -> None:
-        animate_hover_opacity(self._hover_effect, True)
+        animate_hover_opacity(self._hover_effect, True, _MOTION.hover_ms)
         super().enterEvent(event)
 
     def leaveEvent(self, event) -> None:
-        animate_hover_opacity(self._hover_effect, False)
+        animate_hover_opacity(self._hover_effect, False, _MOTION.hover_ms)
         super().leaveEvent(event)
 
 
@@ -55,14 +62,23 @@ class StatusIndicator(QLabel):
 
     def __init__(self, text: str = "", tone: str = "success", parent: QWidget | None = None):
         super().__init__(text, parent)
-        self.setObjectName(f"status{tone.title()}")
+        self.setObjectName(_status_object_name(tone))
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def set_status(self, text: str, tone: str) -> None:
         self.setText(text)
-        self.setObjectName(f"status{tone.title()}")
+        self.setObjectName(_status_object_name(tone))
         self.style().unpolish(self)
         self.style().polish(self)
+        pulse_once(self, _MOTION.state_ms)
+
+
+def _status_object_name(tone: str) -> str:
+    """Map status tone to a known semantic style, with a safe info fallback."""
+    normalized = tone.casefold()
+    if normalized not in {"success", "warning", "error", "info"}:
+        normalized = "info"
+    return f"status{normalized.title()}"
 
 
 class ForgeHeader(QWidget):
@@ -72,14 +88,14 @@ class ForgeHeader(QWidget):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
-        mark = QLabel("F")
+        layout.setSpacing(_SPACE.small)
+        mark = QLabel("F/")
         mark.setObjectName("brandMark")
         mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        mark.setFixedSize(30, 30)
+        mark.setFixedSize(_GEOMETRY.brand_mark_size, _GEOMETRY.brand_mark_size)
         brand = QLabel("FORGE")
         brand.setObjectName("brandName")
-        version = _label("WORKSPACE", "eyebrow")
+        version = _label("LINUX WORKSPACE", "brandMeta")
         layout.addWidget(mark)
         layout.addWidget(brand)
         layout.addWidget(version)
@@ -96,11 +112,16 @@ class SectionHeader(QWidget):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        label = _label(title.upper(), "eyebrow")
+        layout.setSpacing(_SPACE.small)
+        marker = QFrame()
+        marker.setObjectName("sectionMarker")
+        marker.setFixedHeight(_SPACE.large)
+        layout.addWidget(marker)
+        label = _label(title, "sectionTitle")
         layout.addWidget(label)
         layout.addStretch(1)
         if detail:
-            layout.addWidget(_label(detail, "mutedText"))
+            layout.addWidget(_label(detail.upper(), "eyebrow"))
 
 
 class ProjectCard(QFrame):
@@ -130,14 +151,21 @@ class ProjectCard(QFrame):
         layout.addWidget(name)
         location = display_path(project.project_root) if project.project_root else "Project root unavailable"
         location_row = QHBoxLayout()
-        location_row.addWidget(_label("⌖", "mutedText"))
+        location_row.addWidget(_label("ROOT", "metricLabel"))
         location_row.addWidget(_label(location, "monoText"), 1)
         layout.addLayout(location_row)
-        footer = QHBoxLayout()
-        footer.addWidget(_label("ACTIVE PATH", "metricLabel"))
-        footer.addWidget(_label(display_path(project.current_path), "mutedText"), 1)
+        footer = QGridLayout()
+        footer.setHorizontalSpacing(_SPACE.xlarge)
+        footer.setVerticalSpacing(_SPACE.small)
+        footer.addWidget(_label("ACTIVE PATH", "metricLabel"), 0, 0)
+        footer.addWidget(_label("PROJECT METADATA", "metricLabel"), 0, 1)
+        current = _label(display_path(project.current_path), "secondaryText")
+        current.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        footer.addWidget(current, 1, 0)
         files = ", ".join(project.project_files) if project.project_files else "No project metadata"
-        footer.addWidget(_label(files, "mutedText"))
+        footer.addWidget(_label(files, "secondaryText"), 1, 1)
+        footer.setColumnStretch(0, 1)
+        footer.setColumnStretch(1, 1)
         layout.addLayout(footer)
 
 
@@ -218,11 +246,11 @@ class SystemCard(QFrame):
             ("UPTIME", format_uptime(info["uptime_seconds"])),
         )
         grid = QGridLayout()
-        grid.setHorizontalSpacing(22)
-        grid.setVerticalSpacing(14)
+        grid.setHorizontalSpacing(_SPACE.xlarge)
+        grid.setVerticalSpacing(_SPACE.medium)
         for i, (caption, value) in enumerate(values):
             cell = QVBoxLayout()
-            cell.setSpacing(4)
+            cell.setSpacing(_SPACE.xsmall)
             cell.addWidget(_label(caption, "metricLabel"))
             cell.addWidget(_label(value, "metricValue"))
             grid.addLayout(cell, i // 3, i % 3)
@@ -239,7 +267,7 @@ class ActivitySelector(QWidget):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
+        layout.setSpacing(_SPACE.xsmall)
         layout.addWidget(_label("FOCUS", "eyebrow"))
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
@@ -262,7 +290,7 @@ class RefreshControl(QWidget):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(_SPACE.xsmall)
         self.button = ForgeButton("↻  Refresh workspace", "primaryButton")
         layout.addWidget(self.button)
         self.progress = QProgressBar()

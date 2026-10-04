@@ -9,7 +9,7 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Qt, Signal, Slot
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QFileDialog, QFrame, QHBoxLayout, QLabel, QLayout, QMainWindow, QMessageBox,
+    QApplication, QBoxLayout, QFileDialog, QFrame, QHBoxLayout, QLabel, QLayout, QMainWindow, QMessageBox,
     QDockWidget, QInputDialog, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 
@@ -25,7 +25,11 @@ from forge.desktop.components import (
     ProjectCard, RefreshControl, SystemCard,
 )
 from forge.desktop.motion import fade_in, reduced_motion_enabled
-from forge.desktop.theme import stylesheet
+from forge.desktop.theme import THEME, stylesheet
+
+_SPACE = THEME.spacing
+_GEOMETRY = THEME.geometry
+_MOTION = THEME.motion
 
 
 class _WorkspaceRefreshThread(QThread):
@@ -80,19 +84,26 @@ class ForgeWindow(QMainWindow):
         self._refresh_thread: _WorkspaceRefreshThread | None = None
         self._action_threads: dict[int, _ActionThread] = {}
         self._motion_disabled = reduced_motion_enabled(bool(self.state.preferences.get("reduced_motion", False)))
+        app = QApplication.instance()
+        if app is not None:
+            app.setProperty("forgeReducedMotion", self._motion_disabled)
         self.active_activity = self._activity_from_state()
         if self.context.project.project_root is not None:
             remember_workspace(self.state, self.context.project.project_root, self.active_activity)
             self.state_store.save(self.state)
         self.setWindowTitle("Forge — Workspace")
-        self.setMinimumSize(720, 560)
+        self.setMinimumSize(_GEOMETRY.window_min_width, _GEOMETRY.window_min_height)
         self.resize(1040, 820)
         self.setStyleSheet(stylesheet())
 
+        frame = QWidget()
+        frame.setObjectName("forgeFrame")
+        frame_layout = QVBoxLayout(frame)
+        frame_layout.setContentsMargins(_SPACE.small, _SPACE.small, _SPACE.small, _SPACE.small)
         canvas = QWidget()
         canvas.setObjectName("forgeCanvas")
         root_layout = QVBoxLayout(canvas)
-        root_layout.setContentsMargins(28, 16, 28, 0)
+        root_layout.setContentsMargins(_SPACE.window_horizontal, _SPACE.window_top, _SPACE.window_horizontal, 0)
         root_layout.setSpacing(0)
         system = self.context.system
         system_available = bool(system["operating_system"] and system["kernel_version"] and system["hostname"])
@@ -106,29 +117,30 @@ class ForgeWindow(QMainWindow):
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
         page = QWidget()
-        page.setObjectName("forgeCanvas")
+        page.setObjectName("forgePage")
         page.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         page_outer = QHBoxLayout(page)
         page_outer.setContentsMargins(0, 0, 0, 0)
-        page_outer.addStretch(1)
+        page_outer.addStretch(0)
         self.page = QWidget()
-        self.page.setMaximumWidth(1060)
-        self.page.setObjectName("forgeCanvas")
+        self.page.setMaximumWidth(_GEOMETRY.content_max_width)
+        self.page.setObjectName("forgePage")
         self.page_layout = QVBoxLayout(self.page)
-        self.page_layout.setContentsMargins(0, 22, 0, 28)
-        self.page_layout.setSpacing(14)
-        page_outer.addWidget(self.page)
-        page_outer.addStretch(1)
+        self.page_layout.setContentsMargins(0, _SPACE.xlarge, 0, _SPACE.xxlarge)
+        self.page_layout.setSpacing(_SPACE.panel_gap)
+        page_outer.addWidget(self.page, 1)
+        page_outer.addStretch(0)
         self.scroll.setWidget(page)
         root_layout.addWidget(self.scroll, 1)
-        self.setCentralWidget(canvas)
+        frame_layout.addWidget(canvas)
+        self.setCentralWidget(frame)
 
         self.output_panel = ActionOutput()
         self.output_panel.stopRequested.connect(self._stop_actions)
         self.output_dock = QDockWidget("Action Output", self)
         self.output_dock.setObjectName("actionDock")
         self.output_dock.setWidget(self.output_panel)
-        self.output_dock.setMinimumHeight(190)
+        self.output_dock.setMinimumHeight(_SPACE.xxlarge * 5 + _SPACE.large)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.output_dock)
         self.output_dock.hide()
 
@@ -137,7 +149,7 @@ class ForgeWindow(QMainWindow):
         self._build_dashboard()
         if not self._motion_disabled:
             for index, widget in enumerate(self._animated_sections):
-                fade_in(widget, duration_ms=240, delay_ms=index * 55)
+                fade_in(widget, duration_ms=_MOTION.panel_ms, delay_ms=index * _MOTION.stagger_ms)
 
     def _activity_from_state(self) -> str:
         activity = self.state.preferences.get("activity", "Development")
@@ -157,21 +169,31 @@ class ForgeWindow(QMainWindow):
 
     def _build_dashboard(self) -> None:
         self._clear_layout(self.page_layout)
-        title_row = QHBoxLayout()
+        title_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        title_row.setSpacing(_SPACE.large)
+        self.title_row = title_row
         titles = QVBoxLayout()
-        titles.setSpacing(3)
-        titles.addWidget(self._text("Command Center", "pageTitle"))
-        titles.addWidget(self._text("Your workspace, ready to move.", "bodyText"))
-        title_row.addLayout(titles, 1)
+        titles.setSpacing(_SPACE.xsmall)
+        titles.addWidget(self._text("Make space to build.", "pageTitle"))
+        titles.addWidget(self._text("A clear view of your code, tools, and machine.", "bodyText"))
+        title_row.addLayout(titles)
+        self.title_spacer = QWidget()
+        self.title_spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        title_row.addWidget(self.title_spacer, 1)
+        self.toolbar = QWidget()
+        toolbar_layout = QHBoxLayout(self.toolbar)
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        toolbar_layout.setSpacing(_SPACE.small)
         self.palette_button = ForgeButton("⌘  Commands  ·  Ctrl+K")
         self.palette_button.clicked.connect(self.open_command_palette)
-        title_row.addWidget(self.palette_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        toolbar_layout.addWidget(self.palette_button)
         self.session_button = ForgeButton("⌂  Sessions")
         self.session_button.clicked.connect(self.open_sessions)
-        title_row.addWidget(self.session_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        toolbar_layout.addWidget(self.session_button)
         self.refresh_control = RefreshControl()
         self.refresh_control.button.clicked.connect(lambda checked=False: self.refresh_workspace())
-        title_row.addWidget(self.refresh_control, 0, Qt.AlignmentFlag.AlignVCenter)
+        toolbar_layout.addWidget(self.refresh_control)
+        title_row.addWidget(self.toolbar)
         self.page_layout.addLayout(title_row)
 
         self.action_specs = self._available_actions()
@@ -195,7 +217,8 @@ class ForgeWindow(QMainWindow):
         self.page_layout.addWidget(self.action_shelf)
 
         detail_row = QHBoxLayout()
-        detail_row.setSpacing(14)
+        detail_row.setSpacing(_SPACE.panel_gap)
+        self.detail_layout = detail_row
         self.git_card = GitStatus(self.context)
         self.environment_card = EnvironmentCard(self.context)
         detail_row.addWidget(self.git_card, 1)
@@ -204,13 +227,24 @@ class ForgeWindow(QMainWindow):
 
         self.system_card = SystemCard(self.context)
         self.page_layout.addWidget(self.system_card)
-        self.timeline_card = TimelineCard(self.state.timeline)
+        self.timeline_card = TimelineCard(self.state.timeline, self.context.project.project_name or "")
         self.page_layout.addWidget(self.timeline_card)
         self.refresh_error = self._text("", "mutedText")
         self.refresh_error.setWordWrap(True)
         self.page_layout.addWidget(self.refresh_error)
         self._animated_sections = [self.project_card, self.pulse, self.action_shelf,
                                    self.git_card, self.environment_card, self.system_card]
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        compact = self.width() < 840
+        self.title_row.setDirection(
+            QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight
+        )
+        self.title_spacer.setVisible(not compact)
+        self.detail_layout.setDirection(
+            QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight
+        )
 
     @Slot()
     def open_command_palette(self) -> None:
@@ -325,7 +359,7 @@ class ForgeWindow(QMainWindow):
         self._build_dashboard()
         if not self._motion_disabled:
             for index, widget in enumerate(self._animated_sections):
-                fade_in(widget, duration_ms=180, delay_ms=index * 30)
+                fade_in(widget, duration_ms=_MOTION.refresh_ms, delay_ms=index * (_MOTION.stagger_ms // 2))
 
     @Slot(str)
     def _refresh_failed(self, message: str) -> None:
@@ -349,6 +383,8 @@ class ForgeWindow(QMainWindow):
         old = self.action_shelf
         self.action_shelf = ActionShelf(self.action_specs, activity)
         self.page_layout.replaceWidget(old, self.action_shelf)
+        if not self._motion_disabled:
+            fade_in(self.action_shelf, duration_ms=_MOTION.state_ms)
         self.action_shelf.actionRequested.connect(self._dispatch_action)
         old.deleteLater()
 
@@ -357,7 +393,7 @@ class ForgeWindow(QMainWindow):
         self.state_store.save(self.state)
         if hasattr(self, "timeline_card"):
             old = self.timeline_card
-            self.timeline_card = TimelineCard(self.state.timeline)
+            self.timeline_card = TimelineCard(self.state.timeline, self.context.project.project_name or "")
             self.page_layout.replaceWidget(old, self.timeline_card)
             old.deleteLater()
 
